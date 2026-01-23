@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Chat WebRTC</title>
+</head>
+<body>
+
+<h2>Chat WebRTC (HTML)</h2>
+<input id="msg">
+<button onclick="send()">Enviar</button>
+<pre id="log"></pre>
+
+<script>
+const log = m => document.getElementById("log").textContent += m + "\n";
+
+const ws = new WebSocket("ws://localhost:8765");
+const pc = new RTCPeerConnection();
+const channel = pc.createDataChannel("chat");
+
+channel.onopen = () => log("✅ DataChannel abierto");
+channel.onmessage = e => log("[Python] " + e.data);
+
+pc.onicecandidate = e => {
+  if (e.candidate) ws.send(JSON.stringify({ ice: e.candidate }));
+};
+
+ws.onmessage = async e => {
+  const data = JSON.parse(e.data);
+
+  if (data.sdp) {
+    await pc.setRemoteDescription(data.sdp);
+    if (data.sdp.type === "offer") {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ sdp: pc.localDescription }));
+    }
+  }
+
+  if (data.ice) {
+    await pc.addIceCandidate(data.ice);
+  }
+};
+
+async function start() {
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ sdp: pc.localDescription }));
+  };
+}
+
+function send() {
+  channel.send(document.getElementById("msg").value);
+}
+
+start();
+</script>
+</body>
+</html>

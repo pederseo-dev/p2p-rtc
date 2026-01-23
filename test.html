@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Chat WebRTC</title>
+</head>
+<body>
+
+<h2>Chat WebRTC</h2>
+<input id="msg" type="text" placeholder="Escribe mensaje">
+<button id="sendBtn">Enviar</button>
+<pre id="log"></pre>
+
+<script>
+const log = msg => document.getElementById("log").textContent += msg + "\n";
+const msgInput = document.getElementById("msg");
+const sendBtn = document.getElementById("sendBtn");
+
+const pc = new RTCPeerConnection();
+
+// Crear DataChannel desde el navegador
+const channel = pc.createDataChannel("chat");
+
+channel.onopen = () => log("✅ Conectado al DataChannel");
+channel.onmessage = e => log(`[Python] ${e.data}`);
+
+// Enviar mensaje al servidor Python
+sendBtn.onclick = () => {
+  const msg = msgInput.value;
+  if (msg && channel.readyState === "open") {
+    channel.send(msg);
+    log(`[Yo] ${msg}`);
+    msgInput.value = "";
+  }
+};
+
+// Configuración WebRTC (oferta / respuesta)
+async function start() {
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const response = await fetch("http://localhost:8080/offer", {
+    method: "POST",
+    body: JSON.stringify(pc.localDescription),
+    headers: { "Content-Type": "application/json" }
+  });
+
+  const answer = await response.json();
+  await pc.setRemoteDescription(answer);
+}
+
+start();
+</script>
+</body>
+</html>
